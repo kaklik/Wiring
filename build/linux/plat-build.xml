@@ -1,0 +1,100 @@
+<project name="platform">
+  <description>Wiring IDE build sub-project for Linux</description>
+
+  <!-- =============
+       Configuration
+       ============= -->
+
+  <!-- platform.basedir: Directory containing this file -->
+  <dirname property="platform.basedir" file="${ant.file.platform}"/>
+
+  <!-- dist.wiring.dir: The Wiring directory, for .tgz'ing. -->
+  <property name="dist.wiring" value="wiring-${release.version}"/>
+  <property name="dist.wiring.dir" location="${dist.dir}/${dist.wiring}"/>
+  <property name="dist.wiring.lib" location="${dist.wiring.dir}/lib"/>
+  <!-- dist.wiring.script: path to script used to run Wiring -->
+  <property name="dist.wiring.script" location="${dist.wiring.dir}/wiring"/>
+
+  <!-- dist.archive: Archive for wiring distribution. -->
+  <property name="dist.archive"
+            location="${dist.dir}/wiring-${release.version}.tgz"/>
+
+  <!-- platform.bootclasspath: Location of bootstrap class files.
+       Linux builds use the system JDK/JRE, so use its rt.jar. -->
+  <property environment="env"/>
+  <property name="platform.bootclasspath"
+            value="${env.JAVA_HOME}/jre/lib/rt.jar"/>
+
+  <!-- Dependencies -->
+  <property name="dep.toolchain.avr.remote"
+            value="http://wiring.googlecode.com/files/tools-avr-linux-i586.tar.gz"/>
+
+  <!-- =======
+       Targets
+       ======= -->
+
+  <!-- dist -->
+
+  <target name="-dist" depends="make">
+    <!-- Make the dist tarball -->
+    <echo message="Creating dist tarball..."/>
+    <exec executable="tar" dir="${dist.dir}">
+      <arg value="czf"/>
+      <arg value="${dist.archive}"/>
+      <arg value="${dist.wiring}"/>
+    </exec>
+    <echo message="Done. Dist archive is in ${dist.archive}"/>
+  </target>
+
+  <!-- make -->
+
+  <target name="-make" depends="init,resolve.deps,build">
+    <!-- Copy everything into dist.wiring.dir -->
+    <copy todir="${dist.wiring.dir}">
+      <fileset dir="${deps.extract}"/>
+      <fileset dir="${framework.dir}"/>
+      <fileset dir="${build.rsrc.shared}"/>
+      <path refid="lib.class.path"/>
+    </copy>
+    <copy todir="${dist.wiring.lib}" file="${build.jar}"/>
+
+    <!-- Hacks to get things to (mostly) work -->
+    <copy todir="${dist.wiring.dir}" file="${platform.basedir}/dist/wiring"/>
+    <chmod perm="ugo+x">
+      <fileset dir="${dist.wiring.dir}/tools"
+               includes="**/bin/*,**/libexec/gcc/avr/4.3.5/c*"/>
+    </chmod>
+    <chmod perm="ugo+x" file="${dist.wiring.script}"/>
+  </target>
+
+  <!-- run -->
+
+  <target name="-run" depends="make">
+    <exec executable="${dist.wiring.script}"/>
+  </target>
+
+  <!-- Dependency resolution -->
+
+  <target name="-resolve.deps"
+          depends="platform.-resolve.dep.avr">
+  </target>
+
+  <!-- Override AVR toolchain using a real tar, so symlinks work. -->
+  <target name="-resolve.dep.avr"
+          depends="init,-check.dep.avr"
+          unless="exists.dep.avr">
+    <get src="${dep.toolchain.avr.remote}" dest="${dep.toolchain.avr.local}"/>
+    <exec executable="tar" dir="${deps.extract}">
+      <arg value="xzf"/>
+      <arg value="${dep.toolchain.avr.local}"/>
+    </exec>
+  </target>
+
+  <!-- Initializiation -->
+
+  <target name="-init">
+    <mkdir dir="${dist.wiring.dir}"/>
+    <mkdir dir="${dist.wiring.lib}"/>
+  </target>
+
+</project>

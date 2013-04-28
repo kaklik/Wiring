@@ -41,8 +41,8 @@ typedef enum
 /// define a structure that holds the size of the keypad
 typedef struct
 {
-  byte rows : 4;
-  byte columns : 4;
+  byte rows;
+  byte columns;
 } KeypadSize;
 
 /// for readability in user code when polling the state
@@ -59,11 +59,17 @@ class Keypad
 
     char getKey();
     KeypadState getState();
+    unsigned int getPressCount();
 
+    void setMultiPressTime(unsigned int multipress);
     void setDebounceTime(unsigned int debounce);
     void setHoldTime(unsigned int hold);
-
-    void addEventListener(void (*listener)(char));
+    
+    //@deprecated
+    void addEventListener(void (*listener)(char)) {
+      setEventListener(listener);
+    }
+    void setEventListener(void (*listener)(char));
 
   private:
     void transitionTo(KeypadState newState);
@@ -75,7 +81,11 @@ class Keypad
     KeypadSize size;
     KeypadState state;
     char currentKey;
+    char lastKey;
+    unsigned int pressCount;
     unsigned long lastUpdate;
+    unsigned long lastPress;
+    unsigned int multiPressTime;
     unsigned int debounceTime;
     unsigned int holdTime;
 

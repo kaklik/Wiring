@@ -5,6 +5,7 @@
 || @url            http://alexanderbrevig.com/
 || @contribution   Mark Stanley
 || @contribution   Brett Hagman <bhagman@wiring.org.co>
+|| @contribution   Nick Gammon
 ||
 || @description
 || | This is a Hardware Abstraction Library for matrix Keypads.
@@ -44,11 +45,15 @@ Keypad::Keypad(char *userKeymap, byte *row, byte *col, byte rows, byte cols)
   begin(userKeymap);
 
   lastUpdate = 0;
+  lastPress = 0;
+  multiPressTime = 300;
   debounceTime = 50;
   holdTime = 1000;
   keypadEventListener = 0;
   currentKey = NO_KEY;
+  lastKey = NO_KEY;
   state = IDLE;
+  pressCount = 0;
 
   initializePins();
 }
@@ -89,6 +94,7 @@ char Keypad::getKey()
         if (((millis() - lastUpdate) >= debounceTime) && digitalRead(rowPins[r]) == HIGH)
         {
           transitionTo(RELEASED);
+          lastKey = currentKey;
           currentKey = NO_KEY;
         }
       }
@@ -97,6 +103,7 @@ char Keypad::getKey()
       {
         digitalWrite(columnPins[c], HIGH);	// De-activate the current column.
         key = keymap[c + (r * size.columns)];
+        lastPress = lastUpdate;
         lastUpdate = millis();
         goto EVALUATE_KEY; 			// Save resources and do not attempt to parse two keys at a time
       }
@@ -105,10 +112,24 @@ char Keypad::getKey()
   }
 
 EVALUATE_KEY:
-  if (key != NO_KEY && key != currentKey)
+  if (key != NO_KEY)
   {
-    currentKey = key;
-    transitionTo(PRESSED);
+    if (key == lastKey && ((millis() - lastPress) <= multiPressTime))
+    {
+        pressCount++; // increase press count to return the correct key (if multiple keys are available)
+        currentKey = key;
+        transitionTo(PRESSED);
+    }
+    else if (key != currentKey)
+    {
+        pressCount = 1; // key was pressed the first time
+        currentKey = key;
+        transitionTo(PRESSED);
+    }
+    else
+    {
+        return NO_KEY;
+    }
     return currentKey;
   }
   else
@@ -127,6 +148,31 @@ EVALUATE_KEY:
 KeypadState Keypad::getState()
 {
   return state;
+}
+
+/*
+|| @description
+|| | Get the multi press count of the current key
+|| #
+||
+|| @return The current multi press count of the current pressed key
+*/
+unsigned int Keypad::getPressCount()
+{
+  return pressCount;
+}
+
+/*
+|| @description
+|| | Set the multi press time of this keypad
+|| | If changes / presses of the same button occur within the multipress interval, the multipress event will fire
+|| #
+||
+|| @parameter multipress This sets the multi press time for this keypad, value in ms
+*/
+void Keypad::setMultiPressTime(unsigned int multipress)
+{
+  multiPressTime = multipress;
 }
 
 /*
@@ -157,13 +203,13 @@ void Keypad::setHoldTime(unsigned int hold)
 
 /*
 || @description
-|| | Add an event listener to this keypad
+|| | Set an event listener to this keypad
 || | The event listener function has to be of void type, and expect a char as the parameter
 || #
 ||
 || @parameter listener The void function that handles events, must accept a char as its parameter
 */
-void Keypad::addEventListener(void (*listener)(char))
+void Keypad::setEventListener(void (*listener)(char))
 {
   keypadEventListener = listener;
 }
@@ -182,18 +228,18 @@ void Keypad::transitionTo(KeypadState newState)
   }
 }
 
-void Keypad::initializePins()
-{
-  for (byte r = 0; r < size.rows; r++)
+void Keypad::initializePins(){
+  for (byte r=0; r<size.rows; r++)
   {
-    for (byte c = 0; c < size.columns; c++)
-    {
-      pinMode(columnPins[c], OUTPUT);
-      digitalWrite(columnPins[c], HIGH);
-    }
     //configure row pin modes and states
-    pinMode(rowPins[r], INPUT);
-    digitalWrite(rowPins[r], HIGH);
+    pinMode(rowPins[r],INPUT);
+    digitalWrite(rowPins[r],HIGH);
   }
+  for (byte c=0; c<size.columns; c++)
+  {
+    //configure column pin modes and states
+    pinMode(columnPins[c],OUTPUT);
+    digitalWrite(columnPins[c],HIGH);
+  }  
 }
 
